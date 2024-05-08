@@ -47,7 +47,7 @@ class AudioParser(BaseBlobParser):
                 self.key, self.lang, (blob.path, blob.as_bytes(), blob.mimetype)
             )
         else:
-            
+
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(blob.as_bytes())
                 temp_file_path = temp_file.name
