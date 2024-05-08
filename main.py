@@ -9,9 +9,25 @@ from .audio_parser import AudioParser, transcript
 
 
 class Settings(BaseModel):
+    use_local_model: bool = Field(title="Use local model", description="Whether to use a local model (true) or OpenAI API (false)?.", default=True)
     api_key: str = Field(title="API Key", description="The API key for OpenAI's transcription API.", default="")
     language: str = Field(title="Language", description="The language of the audio file in ISO-639-1 format. Defaults to 'en' (English).", default="en")
     audio_key: str = Field(title="Audio Key", description="The key for the WebSocket object to recognize additional content. Defaults to 'whispering_cat'.", default="whispering_cat")
+    model_size_or_path: str = Field(
+        title="Model size or path",
+        description="Size of the model to use (tiny, tiny.en, base, base.en, small, small.en, medium, medium.en, large-v1, large-v2, large-v3, or large), a path to a converted model directory, or a CTranslate2-converted Whisper model ID from the HF Hub. When a size or a model ID is configured, the converted model is downloaded from the Hugging Face Hub.",
+        default="large-v3",
+    )
+    device: str = Field(
+        title="Device",
+        description='Device to use for computation ("cpu", "cuda", "auto").',
+        default="cpu",
+    )
+    compute_type: str = Field(
+        title="Compute type",
+        description="Type to use for computation. See https://opennmt.net/CTranslate2/quantization.html.",
+        default="int8",
+    )
 
 @plugin
 def settings_schema():   
@@ -48,12 +64,15 @@ def before_cat_reads_message(message_json, cat):
     # Get the file type
     file_type = os.path.splitext(os.path.basename(file_path))[1]
 
-    # Making the transcription 
-    transcription = transcript(
-        key=settings["api_key"],
-        lang=settings["language"],
-        file=(file_type, file.read())
-    )   
+    if not settings.get("use_local_model", False):
+        # Making the transcription 
+        transcription = transcript(
+            key=settings["api_key"],
+            lang=settings["language"],
+            file=(file_type, file.read())
+        )
+    else:
+        transcription = "The audio transcription is local."
 
     # Update the text in input
     message_json["text"] = transcription
@@ -76,18 +95,18 @@ def before_rabbithole_splits_text(text: list, cat):
 def rabbithole_instantiates_parsers(file_handlers: dict, cat) -> dict:
     new_file_handlers = file_handlers
 
-    settings = cat.mad_hatter.plugins["whispering_cat"].load_settings()
+    settings = cat.mad_hatter.get_plugin().load_settings()
 
     if settings == {}:
         log.error("No configuration found for WhisperingCat")
         cat.send_ws_message("You did not configure the API key for the transcription API!", "notification")
         return
 
-    new_file_handlers["video/mp4"] = AudioParser(settings["api_key"], settings["language"])
-    new_file_handlers["audio/ogg"] = AudioParser(settings["api_key"], settings["language"])
-    new_file_handlers["audio/wav"] = AudioParser(settings["api_key"], settings["language"])
-    new_file_handlers["audio/webm"] = AudioParser(settings["api_key"], settings["language"])
-    new_file_handlers["audio/mpeg"] = AudioParser(settings["api_key"], settings["language"])
-    new_file_handlers["audio/x-wav"] = AudioParser(settings["api_key"], settings["language"])
+    new_file_handlers["video/mp4"] = AudioParser(settings)
+    new_file_handlers["audio/ogg"] = AudioParser(settings)
+    new_file_handlers["audio/wav"] = AudioParser(settings)
+    new_file_handlers["audio/webm"] = AudioParser(settings)
+    new_file_handlers["audio/mpeg"] = AudioParser(settings)
+    new_file_handlers["audio/x-wav"] = AudioParser(settings)
 
     return new_file_handlers

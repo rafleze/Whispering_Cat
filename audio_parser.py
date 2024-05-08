@@ -24,13 +24,19 @@ def transcript(key, lang, file):
 class AudioParser(BaseBlobParser):
     """Parser for audio blobs."""
 
-    def __init__(self, key: str, lang: str = "en"):
-        self.key = key
-        self.lang = lang
+    def __init__(self, settings):
+        self.key = settings.get("api_key")
+        self.lang = settings.get("language", "en")
+        self.use_local_model = settings.get("use_local_model", True)
+        self.model_size_or_path = settings.get("model_size_or_path", "large-v3")
+        self.device = settings.get("device", "cpu")
+        self.compute_type = settings.get("compute_type", "int8")
 
     def lazy_parse(self, blob: Blob) -> Iterator[Document]:
         """Lazily parse the blob."""
-
-        content = transcript(self.key, self.lang, (blob.path, blob.as_bytes(), blob.mimetype))
+        if not self.use_local_model:
+            content = transcript(self.key, self.lang, (blob.path, blob.as_bytes(), blob.mimetype))
+        else:
+            content = "The audio transcription is local."
 
         yield Document(page_content=content, metadata={"source": "whispering_cat", "name": blob.path.rsplit('.', 1)[0]})
